@@ -1,6 +1,15 @@
+(function() {
+
+var Routes = ReactRouter.Routes;
+var Route = ReactRouter.Route;
+var Link = ReactRouter.Link;
+
 var Store = {
   localStorageKey: 'milestonesStore',
   callbacks: [],
+  _persistentObj: function() {
+    return JSON.parse(localStorage.getItem(this.localStorageKey)) || {};
+  },
   registerCallback: function(callback) {
     this.callbacks.push(callback);
     var obj = this._persistentObj();
@@ -14,7 +23,6 @@ var Store = {
   set: function(name, value) {
     var obj = this._persistentObj();
     obj[name] = value;
-    console.log(obj);
     localStorage.setItem(this.localStorageKey, JSON.stringify(obj));
     this.callbacks.forEach(function(callback) {
       var tmp = {};
@@ -22,15 +30,29 @@ var Store = {
       callback(tmp);
     });
   },
-  _persistentObj: function() {
-    return JSON.parse(localStorage.getItem(this.localStorageKey)) || {};
+  setSpace: function(name, params) {
+    var spaces = this._persistentObj()['spaces'] || {};
+    $.extend(spaces[name], params);
+    this.set('spaces', spaces);
+  },
+  getSpace: function(name) {
+    var spaces = this._persistentObj()['spaces'] || {};
+    return spaces[name];
+  },
+  getAPI: function(spaceName, path, params, callback) {
+    var space = this.getSpace(spaceName);
+    var url = "https://" + spaceName + ".backlog.jp" + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
+    console.log(url);
+    $.get("/proxy?url=" + encodeURIComponent(url), callback);
   }
 };
 
 var EnterSpaceName = React.createClass({
+  mixins: [ReactRouter.Navigation],
   _handleSubmit: function(e) {
     e.preventDefault();
-    Store.set('spaceName', this.refs.spaceName.getDOMNode().value.trim());
+    var spaceName = this.refs.spaceName.getDOMNode().value.trim();
+    this.transitionTo('space', {spaceName: spaceName});
   },
   render: function() {
     return (
@@ -42,13 +64,44 @@ var EnterSpaceName = React.createClass({
   }
 });
 
+var SpaceSelect = React.createClass({
+  mixins: [ReactRouter.Navigation],
+  render: function() {
+    return <Link to='enterSpaceName'>Add space</Link>;
+  }
+});
+
+var Space = React.createClass({
+  mixins: [ReactRouter.Navigation],
+  componentWillMount: function() {
+    var spaceName = this.props.params.spaceName;
+    var space = Store.getSpace(this.props.params.spaceName);
+    if (!space) {
+      this.transitionTo('enterApiKey', {spaceName: spaceName});
+    } else {
+      this.transitionTo('issues', {spaceName: spaceName});
+    }
+  },
+  render: function() {
+    return (
+      <div>
+        <div>space: {this.props.params.spaceName}</div>
+        <this.props.activeRouteHandler/>
+      </div>
+    );
+  }
+});
+
 var EnterApiKey = React.createClass({
   _handleSubmit: function(e) {
     e.preventDefault();
-    Store.set('apiKey', this.refs.apiKey.getDOMNode().value.trim());
+    var spaceName = this.props.params.spaceName;
+    var apiKey = this.refs.apiKey.getDOMNode().value.trim();
+    Store.setSpace(spaceName, {apiKey: apiKey});
   },
   render: function() {
-    var link = "https://" + Store.get('spaceName') + ".backlog.jp/EditApiSettings.action";
+    var spaceName = this.props.params.spaceName;
+    var link = "https://" + spaceName + ".backlog.jp/EditApiSettings.action";
     return (
       <form onSubmit={this._handleSubmit}>
         <div className="form-group">
@@ -63,28 +116,156 @@ var EnterApiKey = React.createClass({
   }
 });
 
-var Test = React.createClass({
+var Project = React.createClass({
+  _handleChange: function(event) {
+    var spaceName = this.props.spaceName;
+    var space = Store.getSpace(spaceName);
+    var project = this.props.project;
+    var projectIds = space.projectIds || [];
+    if (event.target.checked) {
+      projectIds = _.union(projectIds, [project.id]);
+    } else {
+      projectIds = _.without(projectIds, project.id);
+    }
+    console.log(projectIds);
+    Store.setSpace(spaceName, {projectIds: projectIds});
+  },
+  render: function() {
+    var spaceName = this.props.spaceName;
+    var space = Store.getSpace(spaceName);
+    var project = this.props.project;
+    var checked = (space.projectIds.indexOf(project.id) > -1);
+    return (
+      <label className="checkbox-inline">
+        <input type='checkbox' checked={checked} onChange={this._handleChange} />
+        {this.props.project.name}
+      </label>
+    );
+  }
+});
+
+var Issues = React.createClass({
   getInitialState: function() {
     return {
-      issues: []
+      users: [],
+      projects: [],
+      milestones: [],
+      issues: [],
+      issuesByUsers: {}
     };
   },
   componentWillMount: function() {
-     var url = "https://" + Store.get('spaceName') + ".backlog.jp/api/v2/issues?apiKey=" + Store.get('apiKey') + "&projectId[]=1073802649";
-    $.get("/proxy?url=" + encodeURIComponent(url), function(issues) {
-      this.setState({issues: issues});
+    var spaceName = this.props.params.spaceName;
+    // Get Projects
+    Store.getAPI(spaceName, '/api/v2/projects', {}, function(projects) {
+      this.setState({projects: projects});
+    }.bind(this));
+    // Get Users
+    Store.getAPI(spaceName, '/api/v2/users', {}, function(users) {
+      this.setState({users: users});
+    }.bind(this));
+    // Register for checked projectIds
+    Store.registerCallback(function(obj) {
+      var space = obj.spaces[spaceName];
+      if (space) {
+        space.projectIds.forEach(function(projectId) {
+          // Get active milestones
+          Store.getAPI(spaceName, '/api/v2/projects/' + projectId + '/versions', {}, function(milestones) {
+            var activeMilestones = milestones.filter(function(milestone) {
+              return !milestone.archived;
+            }).sort(function(a, b) {
+              if (a.releaseDueDate && b.releaseDueDate) {
+                return a.releaseDueDate - b.releaseDueDate;
+              } else if (a.releaseDueDate) {
+                return -1;
+              } else if (b.releaseDueDate) {
+                return 1;
+              } else {
+                return 0;
+              }
+            });
+            this.setState({milestones: activeMilestones});
+          }.bind(this));
+        }.bind(this));
+        // Get all open issues
+        var issuesParams = {
+          'projectId[]': space.projectIds,
+          'statusId[]': [1,2,3],
+          'count': 100,
+          'offset': 0,
+        };
+        this.setState({issues: []});
+        var repeatGetIssues = function() {
+          Store.getAPI(spaceName, '/api/v2/issues', issuesParams, function(newIssues) {
+            if (newIssues.length > 0) {
+              this.setState({issues: this.state.issues.concat(newIssues)});
+              issuesParams.offset += issuesParams.count;
+              repeatGetIssues();
+            } else {
+              console.log("Total open issues: " + this.state.issues.length);
+              var issuesByUsers = {};
+              // Finish getting all issues
+              this.state.issues.forEach(function(issue) {
+                var userId = issue.assignee ? issue.assignee.id : 0;
+                var issuesByMilestones = issuesByUsers[userId];
+                if (!issuesByMilestones) {
+                  issuesByUsers[userId] = issuesByMilestones = [];
+                }
+                issue.milestone.forEach(function(milestone) {
+                  var issues = issuesByMilestones[milestone.id];
+                  if (!issues) {
+                    issuesByMilestones[milestone.id] = issues = [];
+                  }
+                  issues.push(issue);
+                });
+              });
+              this.setState({issuesByUsers: issuesByUsers});
+            }
+          }.bind(this));
+        }.bind(this)
+        repeatGetIssues();
+      }
     }.bind(this));
   },
   render: function() {
-    issues = this.state.issues.map(function(issue) {
-      return <li>{issue.summary}</li>
+    var spaceName = this.props.params.spaceName;
+    var projects = this.state.projects.map(function(project) {
+      return <li key={project.id}><Project project={project} spaceName={spaceName} /></li>;
     });
+    var issuesByUsers = this.state.users.filter(function(user) {
+      return Boolean(this.state.issuesByUsers[user.id]);
+    }.bind(this)).map(function(user) {
+      var milestonesForUser = this.state.issuesByUsers[user.id];
+      var milestones = this.state.milestones.filter(function(milestone) {
+        return Boolean(milestonesForUser[milestone.id]);
+      }).map(function(milestone) {
+        var issues = milestonesForUser[milestone.id].map(function(issue) {
+          return <li key={issue.id}>{issue.summary}</li>;
+        });
+        return (
+          <li key={milestone.id}>
+            {milestone.name}
+            <ul>{issues}</ul>
+          </li>
+        );
+      });
+      return (
+        <li key={user.id}>
+          {user.name}
+          <ul>{milestones}</ul>
+        </li>
+      );
+    }.bind(this));
     return (
       <div className="row">
         <div className="col-sm-12">
-          <h1>Milestones</h1>
+          <h3>Projects</h3>
+          <ul className="list-inline">
+            {projects}
+          </ul>
+          <h3>Issues</h3>
           <ul>
-            {issues}
+            {issuesByUsers}
           </ul>
         </div>
       </div>
@@ -93,32 +274,26 @@ var Test = React.createClass({
 });
 
 var App = React.createClass({
-  getInitialState: function() {
-    return {}
-  },
-  componentWillMount: function() {
-    Store.registerCallback(function(obj) {
-      console.log(obj);
-      this.setState(obj);
-    }.bind(this));
-  },
   render: function() {
-    var content = null;
-    if (!this.state.spaceName) {
-      content = <EnterSpaceName />
-    } else if (!this.state.apiKey) {
-      content = <EnterApiKey />
-    } else {
-      content = <Test />
-    }
     return (
-      <div className="row">
-        <div className="col-sm-12">
-          {content}
-        </div>
+      <div>
+        <SpaceSelect />
+        <this.props.activeRouteHandler />
       </div>
     );
   }
 });
 
-React.render(<App />, document.getElementById('app'));
+React.render((
+  <Routes location="hash">
+    <Route path="/" handler={App}>
+      <Route name="space" path="spaces/:spaceName" handler={Space}>
+        <Route name="enterApiKey" handler={EnterApiKey} />
+        <Route name="issues" handler={Issues} />
+      </Route>
+      <Route name="enterSpaceName" handler={EnterSpaceName} />
+    </Route>
+  </Routes>
+), document.getElementById('app'));
+
+})();
