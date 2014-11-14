@@ -45,6 +45,11 @@ var Store = {
   getSpace: function(name) {
     return this.spaces()[name];
   },
+  removeSpace: function(name) {
+    var spaces = this.spaces();
+    delete spaces[name];
+    this.set('spaces', spaces);
+  },
   getAPI: function(spaceName, path, params, callback) {
     var space = this.getSpace(spaceName);
     //var url = this.getBaseURL(spaceName) + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
@@ -70,15 +75,13 @@ var EnterSpaceName = React.createClass({
   },
   render: function() {
     return (
-      <form onSubmit={this._handleSubmit}>
+      <form className="form-horizontal" onSubmit={this._handleSubmit}>
         <div className="form-group">
           <div className="col-sm-4">
             <input ref="spaceName" className="form-control" placeholder="Backlog space name" autoFocus={true} />
           </div>
         </div>
-        <div className="form-group">
-          <button className="btn btn-primary">OK</button>
-        </div>
+        <button className="btn btn-primary">OK</button>
       </form>
     );
   }
@@ -88,11 +91,18 @@ var SpaceSelect = React.createClass({
   mixins: [ReactRouter.Navigation],
   render: function() {
     var spaces = Object.keys(Store.spaces()).map(function(spaceName) {
-      return <Link to="space" params={{spaceName: spaceName}} className="btn btn-default">{spaceName}</Link>;
+      return (
+        <Link to="space" params={{spaceName: spaceName}} className="btn btn-default">
+          {spaceName}
+        </Link>
+      );
     });
     return (
-      <div>
-        {spaces} <Link to='enterSpaceName' className="btn btn-default">Add space</Link>
+      <div className="btn-group">
+        {spaces}
+        <Link to='enterSpaceName' className="btn btn-default">
+          <span className="glyphicon glyphicon-plus" aria-hidden="true"></span> Add space
+        </Link>
       </div>
     );
   }
@@ -100,14 +110,20 @@ var SpaceSelect = React.createClass({
 
 var Space = React.createClass({
   mixins: [ReactRouter.Navigation],
-  componentWillMount: function() {
-    var spaceName = this.props.params.spaceName;
-    var space = Store.getSpace(this.props.params.spaceName);
+  _init: function(props) {
+    var spaceName = props.params.spaceName;
+    var space = Store.getSpace(spaceName);
     if (!space) {
       this.transitionTo('enterApiKey', {spaceName: spaceName});
     } else {
       this.transitionTo('issues', {spaceName: spaceName});
     }
+  },
+  componentWillMount: function() {
+    this._init(this.props);
+  },
+  componentWillReceiveProps: function(nextProps) {
+    this._init(nextProps);
   },
   render: function() {
     return (
@@ -131,12 +147,17 @@ var EnterApiKey = React.createClass({
     var spaceName = this.props.params.spaceName;
     var link = "https://" + spaceName + ".backlog.jp/EditApiSettings.action";
     return (
-      <form onSubmit={this._handleSubmit}>
+      <form className="form-horizontal" onSubmit={this._handleSubmit}>
         <div className="form-group">
-          <a href={link} target="_blank">Grab your API key from here</a>
+          <div className="col-sm-12">
+            Space name: {spaceName}<br/>
+            <a href={link} target="_blank">Grab your API key from here.</a>
+          </div>
         </div>
         <div className="form-group">
-          <input ref="apiKey" className="form-control" placeholder="Your backlog API key" />
+          <div className="col-sm-12">
+            <input ref="apiKey" className="form-control" placeholder="Your backlog API key" />
+          </div>
         </div>
         <button className="btn btn-primary">OK</button>
       </form>
@@ -173,6 +194,12 @@ var Project = React.createClass({
 });
 
 var Issues = React.createClass({
+  mixins: [ReactRouter.Navigation],
+  _handleRemove: function() {
+    var spaceName = this.props.params.spaceName;
+    Store.removeSpace(spaceName);
+    this.transitionTo('/');
+  },
   getInitialState: function() {
     return {
       users: [],
@@ -309,6 +336,11 @@ var Issues = React.createClass({
           </ul>
           <h3>Issues</h3>
           {issuesByUsers}
+          <div className="pull-right">
+            <button className="btn btn-danger btn-small" onClick={this._handleRemove}>
+              Remove space
+            </button>
+          </div>
         </div>
       </div>
     );

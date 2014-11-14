@@ -1,6 +1,9 @@
 body {
     margin: 8px;
 }
+form {
+    padding-top: 1em;
+}
 .milestone {
     border-left: 4px solid red;
     padding-left: 8px;
