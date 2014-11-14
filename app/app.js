@@ -70,9 +70,15 @@ var EnterSpaceName = React.createClass({
   },
   render: function() {
     return (
-      <form className="form-inline" onSubmit={this._handleSubmit}>
-        <input ref="spaceName" className="form-control" placeholder="Backlog space name" autoFocus={true} />
-        <button className="btn btn-primary">OK</button>
+      <form onSubmit={this._handleSubmit}>
+        <div className="form-group">
+          <div className="col-sm-4">
+            <input ref="spaceName" className="form-control" placeholder="Backlog space name" autoFocus={true} />
+          </div>
+        </div>
+        <div className="form-group">
+          <button className="btn btn-primary">OK</button>
+        </div>
       </form>
     );
   }
