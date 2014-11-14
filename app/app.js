@@ -32,7 +32,11 @@ var Store = {
   },
   setSpace: function(name, params) {
     var spaces = this._persistentObj()['spaces'] || {};
-    $.extend(spaces[name], params);
+    if (spaces[name]) {
+      $.extend(spaces[name], params);
+    } else {
+      spaces[name] = params;
+    }
     this.set('spaces', spaces);
   },
   getSpace: function(name) {
@@ -57,7 +61,7 @@ var EnterSpaceName = React.createClass({
   render: function() {
     return (
       <form className="form-inline" onSubmit={this._handleSubmit}>
-        <input ref="spaceName" className="form-control" placeholder="Backlog space name" />
+        <input ref="spaceName" className="form-control" placeholder="Backlog space name" autoFocus={true} />
         <button className="btn btn-primary">OK</button>
       </form>
     );
@@ -67,7 +71,7 @@ var EnterSpaceName = React.createClass({
 var SpaceSelect = React.createClass({
   mixins: [ReactRouter.Navigation],
   render: function() {
-    return <Link to='enterSpaceName'>Add space</Link>;
+    return <Link to='enterSpaceName'>Add a backlog space</Link>;
   }
 });
 
@@ -93,11 +97,13 @@ var Space = React.createClass({
 });
 
 var EnterApiKey = React.createClass({
+  mixins: [ReactRouter.Navigation],
   _handleSubmit: function(e) {
     e.preventDefault();
     var spaceName = this.props.params.spaceName;
     var apiKey = this.refs.apiKey.getDOMNode().value.trim();
     Store.setSpace(spaceName, {apiKey: apiKey});
+    this.transitionTo('issues', {spaceName: spaceName});
   },
   render: function() {
     var spaceName = this.props.params.spaceName;
@@ -134,7 +140,7 @@ var Project = React.createClass({
     var spaceName = this.props.spaceName;
     var space = Store.getSpace(spaceName);
     var project = this.props.project;
-    var checked = (space.projectIds.indexOf(project.id) > -1);
+    var checked = space.projectIds && (space.projectIds.indexOf(project.id) > -1);
     return (
       <label className="checkbox-inline">
         <input type='checkbox' checked={checked} onChange={this._handleChange} />
@@ -151,7 +157,8 @@ var Issues = React.createClass({
       projects: [],
       milestones: [],
       issues: [],
-      issuesByUsers: {}
+      issuesByUsers: {},
+      loadingIssues: true
     };
   },
   componentWillMount: function() {
@@ -167,7 +174,7 @@ var Issues = React.createClass({
     // Register for checked projectIds
     Store.registerCallback(function(obj) {
       var space = obj.spaces[spaceName];
-      if (space) {
+      if (space && space.projectIds) {
         space.projectIds.forEach(function(projectId) {
           // Get active milestones
           Store.getAPI(spaceName, '/api/v2/projects/' + projectId + '/versions', {}, function(milestones) {
@@ -219,7 +226,7 @@ var Issues = React.createClass({
                   issues.push(issue);
                 });
               });
-              this.setState({issuesByUsers: issuesByUsers});
+              this.setState({issuesByUsers: issuesByUsers, loadingIssues: false});
             }
           }.bind(this));
         }.bind(this)
@@ -256,6 +263,9 @@ var Issues = React.createClass({
         </li>
       );
     }.bind(this));
+    if (issuesByUsers.length == 0 && this.state.loadingIssues) {
+      issuesByUsers = <li>Loading... {this.state.issues.length}</li>
+    }
     return (
       <div className="row">
         <div className="col-sm-12">
