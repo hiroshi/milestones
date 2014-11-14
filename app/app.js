@@ -31,7 +31,7 @@ var Store = {
     });
   },
   setSpace: function(name, params) {
-    var spaces = this._persistentObj()['spaces'] || {};
+    var spaces = this.spaces();
     if (spaces[name]) {
       $.extend(spaces[name], params);
     } else {
@@ -40,14 +40,16 @@ var Store = {
     this.set('spaces', spaces);
   },
   getSpace: function(name) {
-    var spaces = this._persistentObj()['spaces'] || {};
-    return spaces[name];
+    return this.spaces()[name];
   },
   getAPI: function(spaceName, path, params, callback) {
     var space = this.getSpace(spaceName);
     var url = "https://" + spaceName + ".backlog.jp" + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
     console.log(url);
     $.get("/proxy?url=" + encodeURIComponent(url), callback);
+  },
+  spaces: function() {
+    return this._persistentObj()['spaces'] || {};
   }
 };
 
@@ -71,7 +73,14 @@ var EnterSpaceName = React.createClass({
 var SpaceSelect = React.createClass({
   mixins: [ReactRouter.Navigation],
   render: function() {
-    return <Link to='enterSpaceName'>Add a backlog space</Link>;
+    var spaces = Object.keys(Store.spaces()).map(function(spaceName) {
+      return <Link to="space" params={{spaceName: spaceName}} className="btn btn-default">{spaceName}</Link>;
+    });
+    return (
+      <div>
+        {spaces} <Link to='enterSpaceName' className="btn btn-default">Add space</Link>
+      </div>
+    );
   }
 });
 
@@ -89,7 +98,6 @@ var Space = React.createClass({
   render: function() {
     return (
       <div>
-        <div>space: {this.props.params.spaceName}</div>
         <this.props.activeRouteHandler/>
       </div>
     );
@@ -306,4 +314,5 @@ React.render((
   </Routes>
 ), document.getElementById('app'));
 
+window.MilestoneStore = Store;
 })();
