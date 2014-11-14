@@ -5,9 +5,21 @@ var app = express();
 
 app.get('/proxy', function(req, res) {
   var url = req.query.url;
-  var x = request(url);
-  req.pipe(x);
-  x.pipe(res);
+  //console.log("proxy url: " + url);
+  // var x = request(url);
+  // req.pipe(x);
+  // x.pipe(res);
+  request(url)
+  .on('response', function(proxyRes) {
+    //console.log("proxy response status: " + proxyRes.statusCode);
+    proxyRes.on('data', function(proxyData) {
+      //console.log("proxy data:\n" + proxyData + "\n\n");
+    });
+  })
+  .on('error', function(proxyErr) {
+    console.error(proxyErr);
+  })
+  .pipe(res);
 });
 app.use('/', express.static('app'));
 
