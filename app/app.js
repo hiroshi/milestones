@@ -30,6 +30,9 @@ var Store = {
       callback(tmp);
     });
   },
+  spaces: function() {
+    return this._persistentObj()['spaces'] || {};
+  },
   setSpace: function(name, params) {
     var spaces = this.spaces();
     if (spaces[name]) {
@@ -44,12 +47,17 @@ var Store = {
   },
   getAPI: function(spaceName, path, params, callback) {
     var space = this.getSpace(spaceName);
-    var url = "https://" + spaceName + ".backlog.jp" + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
+    //var url = this.getBaseURL(spaceName) + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
+    var url = this.getURL(spaceName, path, $.extend({apiKey: space.apiKey}, params));
     console.log(url);
     $.get("/proxy?url=" + encodeURIComponent(url), callback);
   },
-  spaces: function() {
-    return this._persistentObj()['spaces'] || {};
+  getURL: function(spaceName, path, params) {
+    var url = "https://" + spaceName + ".backlog.jp" + path;
+    if (params) {
+      url += "?" + $.param(params);
+    }
+    return url;
   }
 };
 
@@ -255,20 +263,32 @@ var Issues = React.createClass({
         return Boolean(milestonesForUser[milestone.id]);
       }).map(function(milestone) {
         var issues = milestonesForUser[milestone.id].map(function(issue) {
-          return <li key={issue.id}>{issue.summary}</li>;
+          return (
+            <a key={issue.id} href={Store.getURL(spaceName, "/view/" + issue.issueKey)} target="_blank" className="list-group-item">
+              <span className="label label-default">{issue.issueKey}</span> {issue.summary}
+            </a>
+          );
         });
         return (
-          <li key={milestone.id}>
-            {milestone.name}
-            <ul>{issues}</ul>
-          </li>
+          <div>
+            <h5 key={milestone.id} className="milestone">
+              {milestone.name}
+            </h5>
+            <div className="list-group">
+              {issues}
+            </div>
+          </div>
         );
       });
       return (
-        <li key={user.id}>
-          {user.name}
-          <ul>{milestones}</ul>
-        </li>
+        <div key={user.id} className="panel panel-default">
+          <div className="panel-heading">
+            <h3 className="panel-title">{user.name}</h3>
+          </div>
+          <div className="panel-body">
+            {milestones}
+          </div>
+        </div>
       );
     }.bind(this));
     if (issuesByUsers.length == 0 && this.state.loadingIssues) {
@@ -282,9 +302,7 @@ var Issues = React.createClass({
             {projects}
           </ul>
           <h3>Issues</h3>
-          <ul>
-            {issuesByUsers}
-          </ul>
+          {issuesByUsers}
         </div>
       </div>
     );
