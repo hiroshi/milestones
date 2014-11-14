@@ -11,7 +11,7 @@ app.get('/proxy', function(req, res) {
 });
 app.use('/', express.static('app'));
 
-var server = app.listen(9000, function(a) {
+var server = app.listen(process.env.PORT || 9000, function(a) {
   console.log(a);
   console.log(server.address());
 });
