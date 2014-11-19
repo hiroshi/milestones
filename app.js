@@ -342,7 +342,7 @@ var Issues = React.createClass({
           {issuesByUsers}
           <div className="pull-right">
             <button className="btn btn-danger btn-small" onClick={this._handleRemove}>
-              Remove space
+              Hide space
             </button>
           </div>
         </div>
