@@ -307,8 +307,8 @@ var Issues = React.createClass({
           );
         });
         return (
-          <div>
-            <h5 key={milestone.id} className="milestone">
+          <div key={milestone.id}>
+            <h5 className="milestone">
               {milestone.name}
             </h5>
             <div className="list-group">
