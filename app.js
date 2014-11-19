@@ -257,9 +257,9 @@ var Issues = React.createClass({
         this.setState({issues: []});
         var repeatGetIssues = function() {
           Store.getAPI(spaceName, '/api/v2/issues', issuesParams, function(newIssues) {
-            if (newIssues.length > 0) {
               this.setState({issues: this.state.issues.concat(newIssues)});
               issuesParams.offset += issuesParams.count;
+            if (newIssues.length == 100) {
               repeatGetIssues();
             } else {
               console.log("Total open issues: " + this.state.issues.length);
