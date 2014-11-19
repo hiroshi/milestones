@@ -253,6 +253,8 @@ var Issues = React.createClass({
           'statusId[]': [1,2,3],
           'count': 100,
           'offset': 0,
+          'sort': 'priority',
+          'order': 'asc'
         };
         this.setState({issues: []});
         var repeatGetIssues = function() {
@@ -300,9 +302,11 @@ var Issues = React.createClass({
         return Boolean(milestonesForUser[milestone.id]);
       }).map(function(milestone) {
         var issues = milestonesForUser[milestone.id].map(function(issue) {
+          var labelClass = {label: true};
+          labelClass["label-" + ['danger', 'primary', 'success'][issue.priority.id - 2]] = true;
           return (
             <a key={issue.id} href={Store.getURL(spaceName, "/view/" + issue.issueKey)} target="_blank" className="list-group-item">
-              <span className="label label-default">{issue.issueKey}</span> {issue.summary}
+              <span className={React.addons.classSet(labelClass)}>{issue.issueKey}</span> {issue.summary}
             </a>
           );
         });
@@ -339,6 +343,13 @@ var Issues = React.createClass({
             {projects}
           </ul>
           <h3>Issues</h3>
+          <div className="help-block">
+            <span className="label label-danger">優先度: 高</span>
+            {" "}
+            <span className="label label-primary">優先度: 中</span>
+            {" "}
+            <span className="label label-success">優先度: 低</span>
+          </div>
           {issuesByUsers}
           <div className="pull-right">
             <button className="btn btn-danger btn-small" onClick={this._handleRemove}>
