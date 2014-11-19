@@ -52,10 +52,9 @@ var Store = {
   },
   getAPI: function(spaceName, path, params, callback) {
     var space = this.getSpace(spaceName);
-    //var url = this.getBaseURL(spaceName) + path + "?" + $.param($.extend({apiKey: space.apiKey}, params));
     var url = this.getURL(spaceName, path, $.extend({apiKey: space.apiKey}, params));
     console.log(url);
-    $.get("/proxy?url=" + encodeURIComponent(url), callback);
+    $.get(url, callback);
   },
   getURL: function(spaceName, path, params) {
     var url = "https://" + spaceName + ".backlog.jp" + path;
