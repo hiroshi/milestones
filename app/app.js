@@ -227,19 +227,24 @@ var Issues = React.createClass({
         space.projectIds.forEach(function(projectId) {
           // Get active milestones
           Store.getAPI(spaceName, '/api/v2/projects/' + projectId + '/versions', {}, function(milestones) {
-            var activeMilestones = milestones.filter(function(milestone) {
+            var activeMilestones = milestones
+            .filter(function(milestone) {
               return !milestone.archived;
-            }).sort(function(a, b) {
-              if (a.releaseDueDate && b.releaseDueDate) {
-                return a.releaseDueDate - b.releaseDueDate;
-              } else if (a.releaseDueDate) {
-                return -1;
-              } else if (b.releaseDueDate) {
-                return 1;
-              } else {
-                return 0;
-              }
+            })
+            .sort(function(a, b) {
+              return a.displayOrder - b.displayOrder;
             });
+            // }).sort(function(a, b) {
+            //   if (a.releaseDueDate && b.releaseDueDate) {
+            //     return a.releaseDueDate - b.releaseDueDate;
+            //   } else if (a.releaseDueDate) {
+            //     return -1;
+            //   } else if (b.releaseDueDate) {
+            //     return 1;
+            //   } else {
+            //     return 0;
+            //   }
+            // });
             this.setState({milestones: activeMilestones});
           }.bind(this));
         }.bind(this));
