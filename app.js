@@ -201,7 +201,7 @@ var Issues = React.createClass({
   },
   getInitialState: function() {
     return {
-      users: [],
+      users: {},
       projects: [],
       milestones: [],
       issues: [],
@@ -214,10 +214,6 @@ var Issues = React.createClass({
     // Get Projects
     Store.getAPI(spaceName, '/api/v2/projects', {}, function(projects) {
       this.setState({projects: projects});
-    }.bind(this));
-    // Get Users
-    Store.getAPI(spaceName, '/api/v2/users', {}, function(users) {
-      this.setState({users: users});
     }.bind(this));
     // Register for checked projectIds
     Store.registerCallback(function(obj) {
@@ -266,22 +262,28 @@ var Issues = React.createClass({
             } else {
               console.log("Total open issues: " + this.state.issues.length);
               var issuesByUsers = {};
+              var users = {};
               // Finish getting all issues
               this.state.issues.forEach(function(issue) {
                 var userId = issue.assignee ? issue.assignee.id : 0;
-                var issuesByMilestones = issuesByUsers[userId];
-                if (!issuesByMilestones) {
-                  issuesByUsers[userId] = issuesByMilestones = [];
+                var milestones = issue.milestone.filter(function(milestone) {
+                  return !milestone.archived;
+                });
+                if (!issuesByUsers[userId] && milestones.length > 0) {
+                  issuesByUsers[userId] = [];
+                  if (userId && !users[userId]) {
+                    users[userId] = issue.assignee;
+                  }
                 }
-                issue.milestone.forEach(function(milestone) {
-                  var issues = issuesByMilestones[milestone.id];
+                milestones.forEach(function(milestone) {
+                  var issues = issuesByUsers[userId][milestone.id];
                   if (!issues) {
-                    issuesByMilestones[milestone.id] = issues = [];
+                     issuesByUsers[userId][milestone.id] = issues = [];
                   }
                   issues.push(issue);
                 });
               });
-              this.setState({issuesByUsers: issuesByUsers, loadingIssues: false});
+              this.setState({issuesByUsers: issuesByUsers, users: users, loadingIssues: false});
             }
           }.bind(this));
         }.bind(this)
@@ -294,10 +296,15 @@ var Issues = React.createClass({
     var projects = this.state.projects.map(function(project) {
       return <li key={project.id}><Project project={project} spaceName={spaceName} /></li>;
     });
-    var issuesByUsers = this.state.users.filter(function(user) {
-      return Boolean(this.state.issuesByUsers[user.id]);
-    }.bind(this)).map(function(user) {
-      var milestonesForUser = this.state.issuesByUsers[user.id];
+    // var issuesByUsers = this.state.users.filter(function(user) {
+    //   return Boolean(this.state.issuesByUsers[user.id]);
+    // }.bind(this)).map(function(user) {
+    // var issuesByUsers = Object.keys(this.state.issuesByUsers).sort().map(function(userId) {
+    var issuesByUsers = Object.keys(this.state.users).sort().filter(function(userId) {
+      return Boolean(Object.keys(this.state.issuesByUsers[userId]).length);
+    }.bind(this)).map(function(userId) {
+      var user = this.state.users[userId];
+      var milestonesForUser = this.state.issuesByUsers[userId];
       var milestones = this.state.milestones.filter(function(milestone) {
         return Boolean(milestonesForUser[milestone.id]);
       }).map(function(milestone) {
@@ -322,7 +329,7 @@ var Issues = React.createClass({
         );
       });
       return (
-        <div key={user.id} className="panel panel-default">
+        <div key={userId} className="panel panel-default">
           <div className="panel-heading">
             <h3 className="panel-title">{user.name}</h3>
           </div>
